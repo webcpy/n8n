@@ -52,6 +52,7 @@ import {
 	EMAIL_SEND_NODE_TYPE,
 	EDIT_IMAGE_NODE_TYPE,
 	COMPRESSION_NODE_TYPE,
+	SPREADSHEET_FILE_NODE_TYPE,
 } from '@/constants';
 import { useI18n } from '@/composables/useI18n';
 import { useNodeTypesStore } from '@/stores/nodeTypes.store';
@@ -438,8 +439,8 @@ export function RegularView(nodes: SimplifiedNodeType[]) {
 					sections: [
 						{
 							key: 'popular',
-							title: i18n.baseText('nodeCreator.sectionNames.popular'),
-							items: [CONVERT_TO_FILE_NODE_TYPE, EXTRACT_FROM_FILE_NODE_TYPE],
+							title: i18n.baseText('nodeCreator.sectionNames.popular') + 111,
+							items: [FILTER_NODE_TYPE, CONVERT_TO_FILE_NODE_TYPE, EXTRACT_FROM_FILE_NODE_TYPE, SPREADSHEET_FILE_NODE_TYPE],
 						},
 					],
 				},
@@ -455,7 +456,7 @@ export function RegularView(nodes: SimplifiedNodeType[]) {
 						{
 							key: 'popular',
 							title: i18n.baseText('nodeCreator.sectionNames.popular'),
-							items: [HTTP_REQUEST_NODE_TYPE, WEBHOOK_NODE_TYPE, CODE_NODE_TYPE],
+							items: [HTTP_REQUEST_NODE_TYPE, WEBHOOK_NODE_TYPE, CODE_NODE_TYPE, SPREADSHEET_FILE_NODE_TYPE],
 						},
 					],
 				},
@@ -485,6 +486,8 @@ export function RegularView(nodes: SimplifiedNodeType[]) {
 			description: i18n.baseText('nodeCreator.triggerHelperPanel.addAnotherTriggerDescription'),
 		},
 	});
+
+	console.log(view)
 
 	return view;
 }

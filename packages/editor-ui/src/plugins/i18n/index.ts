@@ -9,6 +9,8 @@ import { useUIStore } from '@/stores/ui.store';
 import { useNDVStore } from '@/stores/ndv.store';
 import { useRootStore } from '@/stores/n8nRoot.store';
 import englishBaseText from './locales/en.json';
+import chineseBaseText from './locales/zh-CN.json';
+
 import {
 	deriveMiddleKey,
 	isNestedInCollectionLike,
@@ -17,10 +19,16 @@ import {
 } from './utils';
 
 export const i18nInstance = createI18n({
-	locale: 'en',
-	fallbackLocale: 'en',
-	messages: { en: englishBaseText },
+	locale: 'zh-CN',
+	fallbackLocale: 'zh-CN',
+	messages: { 'zh-CN': chineseBaseText }
 });
+
+// export const i18nInstance = createI18n({
+// 	locale: 'en',
+// 	fallbackLocale: 'en',
+// 	messages: { 'en': englishBaseText }
+// });
 
 export class I18nClass {
 	private baseTextCache = new Map<string, string>();
