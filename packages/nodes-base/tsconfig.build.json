@@ -8,7 +8,9 @@
 		"credentials/**/*.ts",
 		"nodes/**/*.ts",
 		"nodes/**/*.json",
+		"nodes_zh/**/*.ts",
+		"nodes_zh/**/*.json",
 		"credentials/translations/**/*.json"
 	],
-	"exclude": ["nodes/**/*.test.ts", "test/**"]
+	"exclude": ["nodes/**/*.test.ts", "nodes_zh/**/*.test.ts", "test/**"]
 }

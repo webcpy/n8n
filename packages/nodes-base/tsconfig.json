@@ -11,7 +11,7 @@
 		"noImplicitReturns": false,
 		"useUnknownInCatchVariables": false
 	},
-	"include": ["credentials/**/*.ts", "nodes_en/**/*.ts", "test/**/*.ts", "utils/**/*.ts"],
+	"include": ["credentials/**/*.ts", "nodes/**/*.ts", "nodes_zh/**/*.ts", "test/**/*.ts", "utils/**/*.ts"],
 	"references": [{
 			"path": "../@n8n/imap/tsconfig.build.json"
 		},

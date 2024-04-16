@@ -27,6 +27,7 @@ function findReferencedMethods(obj, refs = {}, latestName = '') {
 }
 
 (async () => {
+	console.log(packageDir)
 	const loader = new PackageDirectoryLoader(packageDir);
 	await loader.loadAll();
 

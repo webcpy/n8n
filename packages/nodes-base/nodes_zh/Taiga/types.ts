@@ -1,3 +1,4 @@
+// @ts-ignore
 type Resource = 'epic' | 'issue' | 'task' | 'userStory';
 
 type Operation = 'create' | 'delete' | 'update' | 'get' | 'getAll';
