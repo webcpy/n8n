@@ -1,5 +1,6 @@
 import { Service } from 'typedi';
 import { snakeCase } from 'change-case';
+import os from 'node:os';
 import { get as pslGet } from 'psl';
 import type {
 	AuthenticationMethod,
@@ -13,20 +14,23 @@ import type {
 import { TelemetryHelpers } from 'n8n-workflow';
 import { InstanceSettings } from 'n8n-core';
 
+import config from '@/config';
 import { N8N_VERSION } from '@/constants';
 import type { AuthProviderType } from '@db/entities/AuthIdentity';
 import type { GlobalRole, User } from '@db/entities/User';
 import type { ExecutionMetadata } from '@db/entities/ExecutionMetadata';
 import { SharedWorkflowRepository } from '@db/repositories/sharedWorkflow.repository';
-import { MessageEventBus, type EventPayloadWorkflow } from '@/eventbus';
+import { WorkflowRepository } from '@db/repositories/workflow.repository';
+import type { EventPayloadWorkflow } from '@/eventbus';
+import { MessageEventBus } from '@/eventbus/MessageEventBus/MessageEventBus';
 import { determineFinalExecutionStatus } from '@/executionLifecycleHooks/shared/sharedHookFunctions';
 import type {
-	IDiagnosticInfo,
 	ITelemetryUserDeletionData,
 	IWorkflowDb,
 	IExecutionTrackProperties,
 	IWorkflowExecutionDataProcess,
 } from '@/Interfaces';
+import { License } from '@/License';
 import { EventsService } from '@/services/events.service';
 import { NodeTypes } from '@/NodeTypes';
 import { Telemetry } from '@/telemetry';
@@ -50,12 +54,14 @@ function userToPayload(user: User): {
 @Service()
 export class InternalHooks {
 	constructor(
-		private telemetry: Telemetry,
-		private nodeTypes: NodeTypes,
-		private sharedWorkflowRepository: SharedWorkflowRepository,
+		private readonly telemetry: Telemetry,
+		private readonly nodeTypes: NodeTypes,
+		private readonly sharedWorkflowRepository: SharedWorkflowRepository,
+		private readonly workflowRepository: WorkflowRepository,
 		eventsService: EventsService,
 		private readonly instanceSettings: InstanceSettings,
 		private readonly eventBus: MessageEventBus,
+		private readonly license: License,
 	) {
 		eventsService.on(
 			'telemetry.onFirstProductionWorkflowSuccess',
@@ -71,37 +77,75 @@ export class InternalHooks {
 		await this.telemetry.init();
 	}
 
-	async onServerStarted(
-		diagnosticInfo: IDiagnosticInfo,
-		earliestWorkflowCreatedAt?: Date,
-	): Promise<unknown[]> {
+	async onServerStarted(): Promise<unknown[]> {
+		const cpus = os.cpus();
+		const binaryDataConfig = config.getEnv('binaryDataManager');
+
+		const isS3Selected = config.getEnv('binaryDataManager.mode') === 's3';
+		const isS3Available = config.getEnv('binaryDataManager.availableModes').includes('s3');
+		const isS3Licensed = this.license.isBinaryDataS3Licensed();
+		const authenticationMethod = config.getEnv('userManagement.authenticationMethod');
+
 		const info = {
-			version_cli: diagnosticInfo.versionCli,
-			db_type: diagnosticInfo.databaseType,
-			n8n_version_notifications_enabled: diagnosticInfo.notificationsEnabled,
-			n8n_disable_production_main_process: diagnosticInfo.disableProductionWebhooksOnMainProcess,
-			system_info: diagnosticInfo.systemInfo,
-			execution_variables: diagnosticInfo.executionVariables,
-			n8n_deployment_type: diagnosticInfo.deploymentType,
-			n8n_binary_data_mode: diagnosticInfo.binaryDataMode,
-			smtp_set_up: diagnosticInfo.smtp_set_up,
-			ldap_allowed: diagnosticInfo.ldap_allowed,
-			saml_enabled: diagnosticInfo.saml_enabled,
-			license_plan_name: diagnosticInfo.licensePlanName,
-			license_tenant_id: diagnosticInfo.licenseTenantId,
+			version_cli: N8N_VERSION,
+			db_type: config.getEnv('database.type'),
+			n8n_version_notifications_enabled: config.getEnv('versionNotifications.enabled'),
+			n8n_disable_production_main_process: config.getEnv(
+				'endpoints.disableProductionWebhooksOnMainProcess',
+			),
+			system_info: {
+				os: {
+					type: os.type(),
+					version: os.version(),
+				},
+				memory: os.totalmem() / 1024,
+				cpus: {
+					count: cpus.length,
+					model: cpus[0].model,
+					speed: cpus[0].speed,
+				},
+			},
+			execution_variables: {
+				executions_mode: config.getEnv('executions.mode'),
+				executions_timeout: config.getEnv('executions.timeout'),
+				executions_timeout_max: config.getEnv('executions.maxTimeout'),
+				executions_data_save_on_error: config.getEnv('executions.saveDataOnError'),
+				executions_data_save_on_success: config.getEnv('executions.saveDataOnSuccess'),
+				executions_data_save_on_progress: config.getEnv('executions.saveExecutionProgress'),
+				executions_data_save_manual_executions: config.getEnv(
+					'executions.saveDataManualExecutions',
+				),
+				executions_data_prune: config.getEnv('executions.pruneData'),
+				executions_data_max_age: config.getEnv('executions.pruneDataMaxAge'),
+			},
+			n8n_deployment_type: config.getEnv('deployment.type'),
+			n8n_binary_data_mode: binaryDataConfig.mode,
+			smtp_set_up: config.getEnv('userManagement.emails.mode') === 'smtp',
+			ldap_allowed: authenticationMethod === 'ldap',
+			saml_enabled: authenticationMethod === 'saml',
+			license_plan_name: this.license.getPlanName(),
+			license_tenant_id: config.getEnv('license.tenantId'),
+			binary_data_s3: isS3Available && isS3Selected && isS3Licensed,
+			multi_main_setup_enabled: config.getEnv('multiMainSetup.enabled'),
 		};
+
+		const firstWorkflow = await this.workflowRepository.findOne({
+			select: ['createdAt'],
+			order: { createdAt: 'ASC' },
+			where: {},
+		});
 
 		return await Promise.all([
 			this.telemetry.identify(info),
 			this.telemetry.track('Instance started', {
 				...info,
-				earliest_workflow_created: earliestWorkflowCreatedAt,
+				earliest_workflow_created: firstWorkflow?.createdAt,
 			}),
 		]);
 	}
 
-	async onFrontendSettingsAPI(sessionId?: string): Promise<void> {
-		return await this.telemetry.track('Session started', { session_id: sessionId });
+	async onFrontendSettingsAPI(pushRef?: string): Promise<void> {
+		return await this.telemetry.track('Session started', { session_id: pushRef });
 	}
 
 	async onPersonalizationSurveySubmitted(
@@ -158,7 +202,11 @@ export class InternalHooks {
 	}
 
 	async onWorkflowSaved(user: User, workflow: IWorkflowDb, publicApi: boolean): Promise<void> {
-		const { nodeGraph } = TelemetryHelpers.generateNodesGraph(workflow, this.nodeTypes);
+		const isCloudDeployment = config.getEnv('deployment.type') === 'cloud';
+
+		const { nodeGraph } = TelemetryHelpers.generateNodesGraph(workflow, this.nodeTypes, {
+			isCloudDeployment,
+		});
 
 		const notesCount = Object.keys(nodeGraph.notes).length;
 		const overlappingCount = Object.values(nodeGraph.notes).filter(
@@ -291,6 +339,7 @@ export class InternalHooks {
 		]);
 	}
 
+	// eslint-disable-next-line complexity
 	async onWorkflowPostExecute(
 		executionId: string,
 		workflow: IWorkflowBase,
@@ -298,6 +347,11 @@ export class InternalHooks {
 		userId?: string,
 	): Promise<void> {
 		if (!workflow.id) {
+			return;
+		}
+
+		if (runData?.status === 'waiting') {
+			// No need to send telemetry or logs when the workflow hasn't finished yet.
 			return;
 		}
 
@@ -434,23 +488,26 @@ export class InternalHooks {
 			workflowName: workflow.name,
 			metaData: runData?.data?.resultData?.metadata,
 		};
-		promises.push(
-			telemetryProperties.success
-				? this.eventBus.sendWorkflowEvent({
-						eventName: 'n8n.workflow.success',
-						payload: sharedEventPayload,
-				  })
-				: this.eventBus.sendWorkflowEvent({
-						eventName: 'n8n.workflow.failed',
-						payload: {
-							...sharedEventPayload,
-							lastNodeExecuted: runData?.data.resultData.lastNodeExecuted,
-							errorNodeType: telemetryProperties.error_node_type,
-							errorNodeId: telemetryProperties.error_node_id?.toString(),
-							errorMessage: telemetryProperties.error_message?.toString(),
-						},
-				  }),
-		);
+		let event;
+		if (telemetryProperties.success) {
+			event = this.eventBus.sendWorkflowEvent({
+				eventName: 'n8n.workflow.success',
+				payload: sharedEventPayload,
+			});
+		} else {
+			event = this.eventBus.sendWorkflowEvent({
+				eventName: 'n8n.workflow.failed',
+				payload: {
+					...sharedEventPayload,
+					lastNodeExecuted: runData?.data.resultData.lastNodeExecuted,
+					errorNodeType: telemetryProperties.error_node_type,
+					errorNodeId: telemetryProperties.error_node_id?.toString(),
+					errorMessage: telemetryProperties.error_message?.toString(),
+				},
+			});
+		}
+
+		promises.push(event);
 
 		void Promise.all([...promises, this.telemetry.trackWorkflowExecution(telemetryProperties)]);
 	}
@@ -856,6 +913,55 @@ export class InternalHooks {
 				user_id_sharer: userSharedCredentialsData.user_id_sharer,
 				user_ids_sharees_added: userSharedCredentialsData.user_ids_sharees_added,
 				sharees_removed: userSharedCredentialsData.sharees_removed,
+				instance_id: this.instanceSettings.instanceId,
+			}),
+		]);
+	}
+
+	async onUserUpdatedCredentials(userUpdatedCredentialsData: {
+		user: User;
+		credential_name: string;
+		credential_type: string;
+		credential_id: string;
+	}): Promise<void> {
+		void Promise.all([
+			this.eventBus.sendAuditEvent({
+				eventName: 'n8n.audit.user.credentials.updated',
+				payload: {
+					...userToPayload(userUpdatedCredentialsData.user),
+					credentialName: userUpdatedCredentialsData.credential_name,
+					credentialType: userUpdatedCredentialsData.credential_type,
+					credentialId: userUpdatedCredentialsData.credential_id,
+				},
+			}),
+			this.telemetry.track('User updated credentials', {
+				user_id: userUpdatedCredentialsData.user.id,
+				credential_type: userUpdatedCredentialsData.credential_type,
+				credential_id: userUpdatedCredentialsData.credential_id,
+			}),
+		]);
+	}
+
+	async onUserDeletedCredentials(userUpdatedCredentialsData: {
+		user: User;
+		credential_name: string;
+		credential_type: string;
+		credential_id: string;
+	}): Promise<void> {
+		void Promise.all([
+			this.eventBus.sendAuditEvent({
+				eventName: 'n8n.audit.user.credentials.deleted',
+				payload: {
+					...userToPayload(userUpdatedCredentialsData.user),
+					credentialName: userUpdatedCredentialsData.credential_name,
+					credentialType: userUpdatedCredentialsData.credential_type,
+					credentialId: userUpdatedCredentialsData.credential_id,
+				},
+			}),
+			this.telemetry.track('User deleted credentials', {
+				user_id: userUpdatedCredentialsData.user.id,
+				credential_type: userUpdatedCredentialsData.credential_type,
+				credential_id: userUpdatedCredentialsData.credential_id,
 				instance_id: this.instanceSettings.instanceId,
 			}),
 		]);

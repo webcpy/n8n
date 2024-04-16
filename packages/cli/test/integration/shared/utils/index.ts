@@ -18,7 +18,6 @@ import { LoadNodesAndCredentials } from '@/LoadNodesAndCredentials';
 import { Push } from '@/push';
 import { OrchestrationService } from '@/services/orchestration.service';
 
-import { mockNodeTypesData } from '../../../unit/Helpers';
 import { mockInstance } from '../../../shared/mocking';
 
 export { setupTestServer } from './testServer';
@@ -31,9 +30,12 @@ export { setupTestServer } from './testServer';
  * Initialize node types.
  */
 export async function initActiveWorkflowRunner() {
-	mockInstance(Push);
-	mockInstance(OrchestrationService);
+	mockInstance(OrchestrationService, {
+		isMultiMainSetupEnabled: false,
+		shouldAddWebhooks: jest.fn().mockReturnValue(true),
+	});
 
+	mockInstance(Push);
 	mockInstance(ExecutionService);
 	const { ActiveWorkflowRunner } = await import('@/ActiveWorkflowRunner');
 	const workflowRunner = Container.get(ActiveWorkflowRunner);
@@ -174,15 +176,3 @@ export function makeWorkflow(options?: {
 }
 
 export const MOCK_PINDATA = { Spotify: [{ json: { myKey: 'myValue' } }] };
-
-export function setSchedulerAsLoadedNode() {
-	const nodesAndCredentials = mockInstance(LoadNodesAndCredentials);
-
-	Object.assign(nodesAndCredentials, {
-		loadedNodes: mockNodeTypesData(['scheduleTrigger'], {
-			addTrigger: true,
-		}),
-		known: { nodes: {}, credentials: {} },
-		types: { nodes: [], credentials: [] },
-	});
-}

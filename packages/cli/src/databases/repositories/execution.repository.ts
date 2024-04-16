@@ -10,15 +10,15 @@ import {
 	Not,
 	Raw,
 	Repository,
-} from 'typeorm';
-import { DateUtils } from 'typeorm/util/DateUtils';
+} from '@n8n/typeorm';
+import { DateUtils } from '@n8n/typeorm/util/DateUtils';
 import type {
 	FindManyOptions,
 	FindOneOptions,
 	FindOperator,
 	FindOptionsWhere,
 	SelectQueryBuilder,
-} from 'typeorm';
+} from '@n8n/typeorm';
 import { parse, stringify } from 'flatted';
 import {
 	ApplicationError,
@@ -407,7 +407,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		}
 
 		const query = this.createQueryBuilder('execution')
-			.select(['execution.id'])
+			.select(['execution.id', 'execution.workflowId'])
 			.andWhere('execution.workflowId IN (:...accessibleWorkflowIds)', { accessibleWorkflowIds });
 
 		if (deleteConditions.deleteBefore) {
@@ -433,12 +433,19 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 			return;
 		}
 
-		const executionIds = executions.map(({ id }) => id);
+		const ids = executions.map(({ id, workflowId }) => ({
+			executionId: id,
+			workflowId,
+		}));
+
 		do {
 			// Delete in batches to avoid "SQLITE_ERROR: Expression tree is too large (maximum depth 1000)" error
-			const batch = executionIds.splice(0, this.hardDeletionBatchSize);
-			await this.delete(batch);
-		} while (executionIds.length > 0);
+			const batch = ids.splice(0, this.hardDeletionBatchSize);
+			await Promise.all([
+				this.delete(batch.map(({ executionId }) => executionId)),
+				this.binaryDataService.deleteMany(batch),
+			]);
+		} while (ids.length > 0);
 	}
 
 	async getIdsSince(date: Date) {
@@ -575,7 +582,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		} else if (status === 'waiting') {
 			condition.status = 'waiting';
 		} else if (status === 'error') {
-			condition.status = In(['error', 'crashed', 'failed']);
+			condition.status = In(['error', 'crashed']);
 		}
 
 		return condition;
@@ -649,6 +656,16 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 		});
 	}
 
+	async findWithUnflattenedData(executionId: string, accessibleWorkflowIds: string[]) {
+		return await this.findSingleExecution(executionId, {
+			where: {
+				workflowId: In(accessibleWorkflowIds),
+			},
+			includeData: true,
+			unflattenData: true,
+		});
+	}
+
 	async findIfShared(executionId: string, sharedWorkflowIds: string[]) {
 		return await this.findSingleExecution(executionId, {
 			where: {
@@ -672,7 +689,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 	) {
 		const where: FindOptionsWhere<ExecutionEntity> = {
 			id: In(activeExecutionIds),
-			status: Not(In(['finished', 'stopped', 'failed', 'crashed'] as ExecutionStatus[])),
+			status: Not(In(['finished', 'stopped', 'error', 'crashed'])),
 		};
 
 		if (filter) {
