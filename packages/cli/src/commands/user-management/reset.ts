@@ -48,7 +48,6 @@ export class Reset extends BaseCommand {
 			{ key: 'userManagement.isInstanceOwnerSetUp' },
 			{ value: 'false' },
 		);
-
 		this.logger.info('Successfully reset the database to default user state.');
 	}
 

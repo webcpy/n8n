@@ -1018,7 +1018,7 @@
 	"nodeCreator.actionsCategory.actions": "行动",
 	"nodeCreator.actionsCategory.noMatchingActions": "没有匹配的操作。 \n<i>重置搜索</i>",
 	"nodeCreator.actionsCategory.noMatchingTriggers": "没有匹配的触发器。 \n<i>重置搜索</i>",
-	"nodeCreator.actionsCategory.onEvent": "关于{事件}",
+	"nodeCreator.actionsCategory.onEvent": "关于{event}",
 	"nodeCreator.actionsCategory.onNewEvent": "关于新的 {event} 活动",
 	"nodeCreator.actionsCategory.searchActions": "搜索 {node} 操作...",
 	"nodeCreator.actionsCategory.triggers": "触发器",

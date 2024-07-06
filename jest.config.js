@@ -11,6 +11,7 @@ const tsJestOptions = {
 };
 
 const { baseUrl, paths } = require('get-tsconfig').getTsconfig().config?.compilerOptions;
+console.log(paths);
 
 /** @type {import('jest').Config} */
 const config = {
