@@ -1,0 +1,19 @@
+{
+	"node": "n8n-nodes-base.filter",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"details": "Filter节点可以根据条件过滤项目。如果满足条件，项目将传递到下一个节点。如果条件不满足，则项目将被省略。条件可以通过AND（满足所有条件）或OR（至少满足一个条件）组合在一起。",
+	"categories": ["Core Nodes"],
+	"resources": {
+		"primaryDocumentation": [
+			{
+				"url": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.filter/"
+			}
+		],
+		"generic": []
+	},
+	"alias": ["Router", "Filter", "Condition", "Logic", "Boolean", "Branch"],
+	"subcategories": {
+		"Core Nodes": ["Flow", "Data Transformation"]
+	}
+}

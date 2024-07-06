@@ -1,10 +1,10 @@
-const sharedOptions = require('@n8n_io/eslint-config/shared');
+const sharedOptions = require('@front_io/eslint-config/shared');
 
 /**
  * @type {import('@types/eslint').ESLint.ConfigData}
  */
 module.exports = {
-	extends: ['@n8n_io/eslint-config/frontend'],
+	extends: ['@front_io/eslint-config/frontend'],
 
 	...sharedOptions(__dirname, 'frontend'),
 
@@ -37,7 +37,9 @@ module.exports = {
 		'@typescript-eslint/prefer-nullish-coalescing': 'warn',
 		'@typescript-eslint/prefer-optional-chain': 'warn',
 		'@typescript-eslint/restrict-plus-operands': 'warn',
-		'@typescript-eslint/ban-ts-comment': ['warn', { 'ts-ignore': true }],
+		'@typescript-eslint/ban-ts-comment': ['warn', {
+			'ts-ignore': true
+		}],
 		'@typescript-eslint/no-redundant-type-constituents': 'warn',
 		'@typescript-eslint/no-base-to-string': 'warn',
 		'@typescript-eslint/no-unsafe-enum-comparison': 'warn',

@@ -247,7 +247,15 @@ export abstract class DirectoryLoader {
 		isCustom: boolean;
 	}) {
 		try {
-			const codex = this.getCodex(filePath);
+			let codex;
+
+			if (!isCustom) {
+				codex = node.description.codex;
+			}
+
+			if (codex === undefined) {
+				codex = this.getCodex(filePath);
+			}
 
 			if (isCustom) {
 				codex.categories = codex.categories
@@ -280,7 +288,7 @@ export abstract class DirectoryLoader {
 		if (obj.icon?.startsWith('file:')) {
 			const iconPath = path.join(path.dirname(filePath), obj.icon.substring(5));
 			const relativePath = path.relative(this.directory, iconPath);
-			obj.iconUrl = `icons/${this.packageName}/${relativePath}`;
+			obj.iconUrl = `icons/${this.packageName}/${relativePath}`.replace('nodes_zh', 'nodes');
 			delete obj.icon;
 		}
 	}

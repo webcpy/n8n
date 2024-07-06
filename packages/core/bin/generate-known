@@ -22,13 +22,14 @@ const loadClass = (sourcePath) => {
 
 const generateKnownNodes = async () => {
 	const nodeClasses = glob
-		.sync('dist/nodes/**/*.node.js', { cwd: packageDir })
+		.sync('dist/nodes_zh/**/*.node.js', { cwd: packageDir })
 		.map(loadClass)
 		// Ignore node versions
 		.filter((nodeClass) => nodeClass && !/[vV]\d.node\.js$/.test(nodeClass.sourcePath));
 
 	const nodes = {};
 	const nodesByCredential = {};
+	consle.log(nodeClasses)
 
 	for (const { className, sourcePath, instance } of nodeClasses) {
 		const nodeName = instance.description.name;

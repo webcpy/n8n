@@ -11,10 +11,16 @@
 		"noImplicitReturns": false,
 		"useUnknownInCatchVariables": false
 	},
-	"include": ["credentials/**/*.ts", "nodes/**/*.ts", "test/**/*.ts", "utils/**/*.ts"],
-	"references": [
-		{ "path": "../workflow/tsconfig.build.json" },
-		{ "path": "../core/tsconfig.build.json" }
+	"include": ["credentials/**/*.ts", "nodes/**/*.ts", "nodes_zh/**/*.ts", "test/**/*.ts", "utils/**/*.ts"],
+	"references": [{
+			"path": "../@n8n/imap/tsconfig.build.json"
+		},
+		{
+			"path": "../workflow/tsconfig.build.json"
+		},
+		{
+			"path": "../core/tsconfig.build.json"
+		}
 	],
 	"tsc-alias": {
 		"replacers": {

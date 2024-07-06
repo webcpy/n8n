@@ -51,10 +51,11 @@ export class WorkflowService {
 			? {
 					workflows: workflows.map((w) => this.ownershipService.addOwnedByAndSharedWith(w)),
 					count,
-			  }
+				}
 			: { workflows, count };
 	}
 
+	// eslint-disable-next-line complexity
 	async update(
 		user: User,
 		workflow: WorkflowEntity,
@@ -79,8 +80,6 @@ export class WorkflowService {
 				'You do not have permission to update this workflow. Ask the owner to share it with you.',
 			);
 		}
-
-		const oldState = shared.workflow.active;
 
 		if (
 			!forceSave &&
@@ -166,10 +165,7 @@ export class WorkflowService {
 		);
 
 		if (tagIds && !config.getEnv('workflowTagsDisabled')) {
-			await this.workflowTagMappingRepository.delete({ workflowId });
-			await this.workflowTagMappingRepository.insert(
-				tagIds.map((tagId) => ({ tagId, workflowId })),
-			);
+			await this.workflowTagMappingRepository.overwriteTaggings(workflowId, tagIds);
 		}
 
 		if (workflow.versionId !== shared.workflow.versionId) {
@@ -229,17 +225,6 @@ export class WorkflowService {
 		}
 
 		await this.orchestrationService.init();
-
-		const newState = updatedWorkflow.active;
-
-		if (this.orchestrationService.isMultiMainSetupEnabled && oldState !== newState) {
-			await this.orchestrationService.publish('workflowActiveStateChanged', {
-				workflowId,
-				oldState,
-				newState,
-				versionId: shared.workflow.versionId,
-			});
-		}
 
 		return updatedWorkflow;
 	}

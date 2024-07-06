@@ -5,18 +5,17 @@ import { Flags, type Config } from '@oclif/core';
 import path from 'path';
 import { mkdir } from 'fs/promises';
 import { createReadStream, createWriteStream, existsSync } from 'fs';
-import stream from 'stream';
+import { pipeline } from 'stream/promises';
 import replaceStream from 'replacestream';
-import { promisify } from 'util';
 import glob from 'fast-glob';
-import { sleep, jsonParse } from 'n8n-workflow';
+import { jsonParse } from 'n8n-workflow';
 
 import config from '@/config';
 import { ActiveExecutions } from '@/ActiveExecutions';
 import { ActiveWorkflowRunner } from '@/ActiveWorkflowRunner';
 import { Server } from '@/Server';
 import { EDITOR_UI_DIST_DIR, LICENSE_FEATURES } from '@/constants';
-import { MessageEventBus } from '@/eventbus';
+import { MessageEventBus } from '@/eventbus/MessageEventBus/MessageEventBus';
 import { InternalHooks } from '@/InternalHooks';
 import { License } from '@/License';
 import { OrchestrationService } from '@/services/orchestration.service';
@@ -31,7 +30,6 @@ import { BaseCommand } from './BaseCommand';
 
 // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
 const open = require('open');
-const pipeline = promisify(stream.pipeline);
 
 export class Start extends BaseCommand {
 	static description = 'Starts n8n. Makes Web-UI available and starts active workflows';
@@ -78,7 +76,7 @@ export class Start extends BaseCommand {
 		const editorUrl = Container.get(UrlService).baseUrl;
 
 		open(editorUrl, { wait: true }).catch(() => {
-			console.log(
+			this.logger.info(
 				`\nWas not able to open URL in browser. Please open manually by visiting:\n${editorUrl}\n`,
 			);
 		});
@@ -96,7 +94,7 @@ export class Start extends BaseCommand {
 			// Stop with trying to activate workflows that could not be activated
 			this.activeWorkflowRunner.removeAllQueuedWorkflowActivations();
 
-			Container.get(WaitTracker).shutdown();
+			Container.get(WaitTracker).stopTracking();
 
 			await this.externalHooks?.run('n8n.stop', []);
 
@@ -108,23 +106,7 @@ export class Start extends BaseCommand {
 
 			await Container.get(InternalHooks).onN8nStop();
 
-			// Wait for active workflow executions to finish
-			const activeExecutionsInstance = Container.get(ActiveExecutions);
-			let executingWorkflows = activeExecutionsInstance.getActiveExecutions();
-
-			let count = 0;
-			while (executingWorkflows.length !== 0) {
-				if (count++ % 4 === 0) {
-					console.log(`Waiting for ${executingWorkflows.length} active executions to finish...`);
-
-					executingWorkflows.map((execution) => {
-						console.log(` - Execution ID ${execution.id}, workflow ID: ${execution.workflowId}`);
-					});
-				}
-
-				await sleep(500);
-				executingWorkflows = activeExecutionsInstance.getActiveExecutions();
-			}
+			await Container.get(ActiveExecutions).shutdown();
 
 			// Finally shut down Event Bus
 			await Container.get(MessageEventBus).close();
@@ -228,31 +210,11 @@ export class Start extends BaseCommand {
 		if (!orchestrationService.isMultiMainSetupEnabled) return;
 
 		orchestrationService.multiMainSetup
-			.addListener('leadershipChange', async () => {
-				if (orchestrationService.isLeader) {
-					this.logger.debug('[Leadership change] Clearing all activation errors...');
-
-					await this.activeWorkflowRunner.clearAllActivationErrors();
-
-					this.logger.debug(
-						'[Leadership change] Adding all trigger- and poller-based workflows...',
-					);
-
-					await this.activeWorkflowRunner.addAllTriggerAndPollerBasedWorkflows();
-				} else {
-					this.logger.debug(
-						'[Leadership change] Removing all trigger- and poller-based workflows...',
-					);
-
-					await this.activeWorkflowRunner.removeAllTriggerAndPollerBasedWorkflows();
-				}
-			})
-			.addListener('leadershipVacant', async () => {
-				this.logger.debug(
-					'[Leadership vacant] Removing all trigger- and poller-based workflows...',
-				);
-
+			.on('leader-stepdown', async () => {
 				await this.activeWorkflowRunner.removeAllTriggerAndPollerBasedWorkflows();
+			})
+			.on('leader-takeover', async () => {
+				await this.activeWorkflowRunner.addAllTriggerAndPollerBasedWorkflows();
 			});
 	}
 
@@ -372,20 +334,12 @@ export class Start extends BaseCommand {
 		if (!orchestrationService.isMultiMainSetupEnabled) return;
 
 		orchestrationService.multiMainSetup
-			.addListener('leadershipChange', async () => {
-				if (orchestrationService.isLeader) {
-					this.pruningService.startPruning();
-				} else {
-					this.pruningService.stopPruning();
-				}
-			})
-			.addListener('leadershipVacant', () => {
-				this.pruningService.stopPruning();
-			});
+			.on('leader-stepdown', () => this.pruningService.stopPruning())
+			.on('leader-takeover', () => this.pruningService.startPruning());
 	}
 
 	async catch(error: Error) {
-		console.log(error.stack);
+		if (error.stack) this.logger.error(error.stack);
 		await this.exitWithCrash('Exiting due to an error.', error);
 	}
 }
