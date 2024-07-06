@@ -12,5 +12,5 @@
 		"nodes_zh/**/*.json",
 		"credentials/translations/**/*.json"
 	],
-	"exclude": ["nodes/**/*.test.ts", "nodes_zh/**/*.test.ts", "test/**"]
+	"exclude": ["nodes/**/*.test.ts", "credentials/**/*.test.ts", "test/**"]
 }
